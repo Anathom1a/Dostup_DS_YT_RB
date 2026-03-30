@@ -2,8 +2,8 @@ name: Build Dostup_YT_DS_RBLX
 
 on:
   push:
-    branches: [ "master", "main" ]
-  workflow_dispatch:
+    branches: [ "master", "main" ] # Запуск при пуше в любую из этих веток
+  workflow_dispatch: # Позволяет запустить сборку вручную кнопкой в GitHub Actions
 
 jobs:
   build:
@@ -22,32 +22,47 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         cd myzapretui
-        pip install customtkinter requests pyinstaller
+        # Установка необходимых библиотек
+        pip install customtkinter requests pyinstaller wmi
 
     - name: Inject Secret Salt
       env:
+        # Берём соль из Secrets твоего репозитория
         SECRET_FROM_GITHUB: ${{ secrets.MY_APP_SALT }}
       run: |
         cd myzapretui
+        # Создаем файл config.py, который импортирует наш main.py
         echo "SECRET_SALT = '${env:SECRET_FROM_GITHUB}'" > config.py
 
-    - name: Build with PyInstaller
+    - name: Find winws.exe and Build
       run: |
+        # 1. Пытаемся найти winws.exe по всему репозиторию
+        $WINWS_PATH = Get-ChildItem -Path "${{ github.workspace }}" -Filter "winws.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
+        
+        if (-not $WINWS_PATH) {
+          echo "❌ КРИТИЧЕСКАЯ ОШИБКА: Файл winws.exe не найден в репозитории!"
+          echo "Убедитесь, что он не добавлен в .gitignore и загружен в GitHub."
+          echo "Список всех файлов для проверки:"
+          dir /s "${{ github.workspace }}"
+          exit 1
+        }
+        
+        echo "✅ winws.exe найден: $WINWS_PATH"
         $REPO_ROOT = "${{ github.workspace }}"
+        
         cd myzapretui
         
-        # Собираем:
-        # 1. winws.exe из папки bin\win64
-        # 2. ВСЕ .bat файлы из корня репозитория (те самые 20+ генералов)
-        # 3. Всё это кладём в папку proxy_bin внутри EXE
-        
+        # 2. Запуск сборки
+        # --name: задаем имя итоговому файлу
+        # --add-data: упаковываем winws и все батники во внутреннюю папку proxy_bin
         pyinstaller --noconfirm --onefile --windowed `
-          --add-data "$REPO_ROOT\bin\win64\winws.exe;proxy_bin" `
+          --name "Dostup_YT_DS_RBLX" `
+          --add-data "$WINWS_PATH;proxy_bin" `
           --add-data "$REPO_ROOT\*.bat;proxy_bin" `
           main.py
 
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Dostup-Full-Pack
-        path: myzapretui/dist/main.exe
+        name: Dostup_YT_DS_RBLX_EXE
+        path: myzapretui/dist/Dostup_YT_DS_RBLX.exe
