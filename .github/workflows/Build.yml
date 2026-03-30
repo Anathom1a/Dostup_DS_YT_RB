@@ -1,9 +1,9 @@
-name: Build and Release Windows App
+name: Build Dostup_YT_DS_RBLX
 
 on:
   push:
-    branches: [ "main" ] # Запуск при пуше в main
-  workflow_dispatch: # Позволяет запускать сборку вручную из интерфейса GitHub
+    branches: [ "master", "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -11,27 +11,48 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.11' # Укажи свою версию
+        python-version: '3.11'
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        cd myzapretui
         pip install -r requirements.txt
         pip install pyinstaller
 
-    - name: Build executable with PyInstaller
-      # Замени main.py на твой главный файл. 
-      # --noconsole убирает черное окно командной строки сзади UI
+    # --- НОВЫЙ ШАГ: Внедрение секрета ---
+    - name: Inject Secret Salt
+      env:
+        # Забираем секрет из настроек репозитория
+        SECRET_FROM_GITHUB: ${{ secrets.MY_APP_SALT }}
       run: |
-        pyinstaller --noconfirm --onedir --windowed --add-data "zapret_files;zapret_files" main.py
+        cd myzapretui
+        # Создаем файл config.py и записываем в него переменную
+        echo "SECRET_SALT = '${env:SECRET_FROM_GITHUB}'" > config.py
 
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+    - name: Build with PyInstaller
+      run: |
+        cd myzapretui
+        
+        # PyInstaller автоматически подхватит свежесозданный config.py и зашьет его в exe
+        pyinstaller --noconfirm --onefile --windowed `
+          --add-data "..\binaries\win64\winws.exe;proxy_bin" `
+          --add-data "..\*.bat;proxy_bin" `
+          main.py
+
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v4
       with:
-        name: ZapretUI-Build
-        path: dist/main/ # Путь, куда PyInstaller сложил готовые файлы
+        name: Dostup-Executable
+        path: myzapretui/dist/main.exe
+
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Dostup_YT_DS_RBLX-Exec
+        path: myzapretui/dist/main.exe
